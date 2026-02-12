@@ -1,0 +1,8 @@
+{
+  "name": "GuardDrive AI - Fatigue Monitoring System",
+  "description": "A high-tech driver safety application that uses Gemini vision to monitor blink frequency and head posture, providing real-time fatigue warnings and emergency responses.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
