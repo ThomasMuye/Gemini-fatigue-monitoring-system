@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Camera, AlertTriangle, ShieldCheck, Activity, Volume2, Settings, List, Terminal } from 'lucide-react';
+import { Camera, AlertTriangle, ShieldCheck, Activity, Volume2, Settings, List, Terminal, Download, Monitor } from 'lucide-react';
 import { FatigueLevel, AnalysisResult, SystemLog } from './types';
 import { analyzeDriverState, generateAlertAudio } from './services/geminiService';
 import StatCard from './components/StatCard';
@@ -61,9 +61,8 @@ const App: React.FC = () => {
         const result = await analyzeDriverState(base64);
         setAnalysis(result);
 
-        // Logic for warnings
         const now = Date.now();
-        const alertCooldown = 15000; // 15 seconds
+        const alertCooldown = 15000;
 
         if (result.fatigueLevel === FatigueLevel.MODERATE) {
           setIsEmergency(false);
@@ -75,8 +74,8 @@ const App: React.FC = () => {
           }
         } else if (result.fatigueLevel === FatigueLevel.HEAVY) {
           setIsEmergency(true);
-          setAudioVolume(0.2); // Dim "music" volume
-          if (now - lastAlertTimeRef.current > 5000) { // More frequent alerts for heavy fatigue
+          setAudioVolume(0.2);
+          if (now - lastAlertTimeRef.current > 5000) {
             addLog(FatigueLevel.HEAVY, "！！！检测到重度疲劳！！！触发紧急响应模式。");
             playTTS("警告！检测到严重疲劳！请立即靠边停车！警告！");
             lastAlertTimeRef.current = now;
@@ -84,7 +83,7 @@ const App: React.FC = () => {
         } else {
           setIsEmergency(false);
           setAudioVolume(1.0);
-          if (analysis?.fatigueLevel !== FatigueLevel.LOW) {
+          if (analysis?.fatigueLevel && analysis.fatigueLevel !== FatigueLevel.LOW) {
              addLog(FatigueLevel.LOW, "状态恢复正常。");
           }
         }
@@ -171,30 +170,21 @@ const App: React.FC = () => {
       </header>
 
       <main className="flex-1 flex flex-col lg:flex-row p-6 gap-6 overflow-hidden">
-        {/* Left Side: Camera & Metrics */}
         <div className="flex-1 flex flex-col gap-6 min-w-0">
-          {/* Camera View */}
           <div className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl group">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted 
-              className="w-full h-full object-cover scale-x-[-1]"
-            />
+            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
             <canvas ref={canvasRef} className="hidden" />
             
             {!isMonitoring && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90 text-slate-400 p-8 text-center">
                 <Camera className="w-16 h-16 mb-4 opacity-20" />
-                <p className="text-lg font-medium">Camera Feed Inactive</p>
+                <p className="text-lg font-medium text-white">Live Monitoring Inactive</p>
                 <p className="text-sm opacity-60 max-w-xs mt-2">Initialize the monitoring system to start real-time driver state analysis.</p>
               </div>
             )}
 
             {isMonitoring && (
               <>
-                {/* HUD Overlay */}
                 <div className="absolute top-4 left-4 p-4 rounded-xl bg-slate-950/60 backdrop-blur-sm border border-slate-700/50 pointer-events-none">
                    <div className="flex items-center gap-2 mb-1">
                       <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -213,43 +203,37 @@ const App: React.FC = () => {
             )}
           </div>
 
-          {/* Real-time stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-             <StatCard 
-              label="Blink Rate" 
-              value={analysis?.blinkRate || '--'} 
-              unit="BPM" 
-              icon={<Activity className="w-4 h-4" />}
-              status={analysis?.blinkRate && analysis.blinkRate < 10 ? 'warning' : 'normal'}
-            />
-            <StatCard 
-              label="Head Tilt" 
-              value={analysis?.headAngle || '--'} 
-              unit="DEG" 
-              icon={<Settings className="w-4 h-4" />}
-              status={analysis?.headAngle && analysis.headAngle > 20 ? 'warning' : 'normal'}
-            />
-             <StatCard 
-              label="Eye Status" 
-              value={analysis?.eyeStatus || '--'} 
-              icon={<Camera className="w-4 h-4" />}
-              status={analysis?.eyeStatus === 'DROOPY' ? 'warning' : analysis?.eyeStatus === 'CLOSED' ? 'danger' : 'normal'}
-            />
-             <StatCard 
-              label="Confidence" 
-              value={analysis ? Math.round(analysis.confidence * 100) : '--'} 
-              unit="%" 
-              icon={<Terminal className="w-4 h-4" />}
-            />
+             <StatCard label="Blink Rate" value={analysis?.blinkRate || '--'} unit="BPM" icon={<Activity className="w-4 h-4" />} status={analysis?.blinkRate && analysis.blinkRate < 10 ? 'warning' : 'normal'} />
+             <StatCard label="Head Tilt" value={analysis?.headAngle || '--'} unit="DEG" icon={<Settings className="w-4 h-4" />} status={analysis?.headAngle && analysis.headAngle > 20 ? 'warning' : 'normal'} />
+             <StatCard label="Eye Status" value={analysis?.eyeStatus || '--'} icon={<Camera className="w-4 h-4" />} status={analysis?.eyeStatus === 'DROOPY' ? 'warning' : analysis?.eyeStatus === 'CLOSED' ? 'danger' : 'normal'} />
+             <StatCard label="Confidence" value={analysis ? Math.round(analysis.confidence * 100) : '--'} unit="%" icon={<Terminal className="w-4 h-4" />} />
           </div>
         </div>
 
-        {/* Right Side: Log & System Status */}
         <div className="w-full lg:w-96 flex flex-col gap-6 overflow-hidden">
-           {/* Control Panel Summary */}
+           {/* Desktop App Promo */}
+           <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-2xl p-5">
+              <div className="flex items-center gap-3 mb-3">
+                 <Monitor className="w-5 h-5 text-indigo-400" />
+                 <h3 className="font-bold text-sm">Windows Desktop Version</h3>
+              </div>
+              <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                For higher performance and direct vehicle hardware control, use the standalone Python or C++ editions.
+              </p>
+              <div className="flex gap-2">
+                 <button className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold py-2 rounded-lg transition-colors">
+                   <Download className="w-3 h-3" /> PYTHON SOURCE
+                 </button>
+                 <button className="flex-1 flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold py-2 rounded-lg transition-colors">
+                   <Download className="w-3 h-3" /> C++ SOURCE
+                 </button>
+              </div>
+           </div>
+
            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold flex items-center gap-2">
+                <h3 className="font-bold flex items-center gap-2 text-sm">
                   <Settings className="w-4 h-4 text-indigo-400" />
                   System Controller
                 </h3>
@@ -265,7 +249,7 @@ const App: React.FC = () => {
                     </div>
                  </div>
                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-400">Peripheral Warning Lights</span>
+                    <span className="text-xs text-slate-400">Warning Lights</span>
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${isEmergency ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-800 text-slate-500'}`}>
                       {isEmergency ? 'FLASHING' : 'IDLE'}
                     </span>
@@ -279,8 +263,7 @@ const App: React.FC = () => {
               </div>
            </div>
 
-           {/* Event Log */}
-           <div className="flex-1 bg-slate-900/50 border border-slate-800 rounded-2xl flex flex-col overflow-hidden min-h-[300px]">
+           <div className="flex-1 bg-slate-900/50 border border-slate-800 rounded-2xl flex flex-col overflow-hidden min-h-[250px]">
               <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/30">
                 <h3 className="font-bold flex items-center gap-2 text-sm">
                   <List className="w-4 h-4 text-indigo-400" />
@@ -313,7 +296,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Warning Overlay for Emergency */}
       {isEmergency && (
         <div className="fixed inset-x-0 bottom-0 bg-rose-600 text-white p-4 text-center font-bold text-lg animate-bounce flex items-center justify-center gap-4 z-50">
           <AlertTriangle className="w-8 h-8" />
