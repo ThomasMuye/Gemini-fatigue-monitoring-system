@@ -1,14 +1,56 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { AnalysisResult, FatigueLevel } from "../types";
+import { AnalysisResult, Language } from "../types";
 
 const API_KEY = process.env.API_KEY || '';
 
-export const analyzeDriverState = async (base64Image: string): Promise<AnalysisResult> => {
+/**
+ * Decodes a base64 string to a Uint8Array.
+ * Manual implementation as per Gemini API rules.
+ */
+export function decodeBase64(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Decodes raw PCM data into an AudioBuffer.
+ * Necessary because Gemini TTS returns raw PCM without headers.
+ */
+export async function decodePcmData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
+
+export const analyzeDriverState = async (base64Image: string, lang: Language): Promise<AnalysisResult> => {
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   
+  const languageDirective = lang === Language.CN 
+    ? "请用中文提供推理说明(reasoning)。" 
+    : "Please provide the reasoning in English.";
+
+  // Switched to gemini-flash-lite-latest for better stability in high-frequency multimodal tasks
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-flash-lite-latest',
     contents: {
       parts: [
         {
@@ -18,14 +60,10 @@ export const analyzeDriverState = async (base64Image: string): Promise<AnalysisR
           },
         },
         {
-          text: `Analyze the driver's face in this image for fatigue signs. 
-          Focus on:
-          1. Eye status (fully open, droopy, or closed).
-          2. Blink frequency indicators.
-          3. Head posture (tilted forward or sideways).
-          4. Presence of yawning.
-          
-          Based on these, classify fatigue as LOW (alert), MODERATE (showing signs of tiredness), or HEAVY (dangerously sleepy).`
+          text: `Analyze the driver's face for fatigue. 
+          Identify: Eye status (OPEN/CLOSED/DROOPY), Blink rate, Head tilt, and Yawning.
+          Categorize level as LOW, MODERATE, or HEAVY.
+          Return ONLY JSON. ${languageDirective}`
         }
       ],
     },
@@ -34,32 +72,13 @@ export const analyzeDriverState = async (base64Image: string): Promise<AnalysisR
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          fatigueLevel: {
-            type: Type.STRING,
-            description: "One of LOW, MODERATE, HEAVY",
-          },
-          blinkRate: {
-            type: Type.NUMBER,
-            description: "Estimated blinks per minute (0-60)",
-          },
-          headAngle: {
-            type: Type.NUMBER,
-            description: "Degree of head tilt from vertical (0-90)",
-          },
-          eyeStatus: {
-            type: Type.STRING,
-            description: "OPEN, CLOSED, or DROOPY",
-          },
-          yawnDetected: {
-            type: Type.BOOLEAN,
-          },
-          confidence: {
-            type: Type.NUMBER,
-          },
-          reasoning: {
-            type: Type.STRING,
-            description: "Brief explanation of the assessment",
-          },
+          fatigueLevel: { type: Type.STRING },
+          blinkRate: { type: Type.NUMBER },
+          headAngle: { type: Type.NUMBER },
+          eyeStatus: { type: Type.STRING },
+          yawnDetected: { type: Type.BOOLEAN },
+          confidence: { type: Type.NUMBER },
+          reasoning: { type: Type.STRING },
         },
         required: ["fatigueLevel", "blinkRate", "headAngle", "eyeStatus", "yawnDetected", "confidence", "reasoning"],
       },
@@ -67,14 +86,16 @@ export const analyzeDriverState = async (base64Image: string): Promise<AnalysisR
   });
 
   try {
-    return JSON.parse(response.text || '{}') as AnalysisResult;
+    const text = response.text;
+    if (!text) throw new Error("Empty response from AI");
+    return JSON.parse(text) as AnalysisResult;
   } catch (error) {
     console.error("Failed to parse Gemini response:", error);
-    throw new Error("Invalid analysis data");
+    throw error;
   }
 };
 
-export const generateAlertAudio = async (text: string): Promise<ArrayBuffer> => {
+export const generateAlertAudioBase64 = async (text: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-preview-tts",
@@ -91,11 +112,5 @@ export const generateAlertAudio = async (text: string): Promise<ArrayBuffer> => 
 
   const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
   if (!base64Audio) throw new Error("No audio data received");
-
-  const binaryString = atob(base64Audio);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
+  return base64Audio;
 };

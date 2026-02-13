@@ -5,10 +5,21 @@ export enum FatigueLevel {
   HEAVY = 'HEAVY'
 }
 
+export enum Language {
+  EN = 'EN',
+  CN = 'CN'
+}
+
+export enum EngineType {
+  WEB = 'WEB',
+  PYTHON = 'PYTHON',
+  CPP = 'CPP'
+}
+
 export interface AnalysisResult {
   fatigueLevel: FatigueLevel;
-  blinkRate: number; // Blinks per minute estimate
-  headAngle: number; // Degrees of tilt
+  blinkRate: number;
+  headAngle: number;
   eyeStatus: 'OPEN' | 'CLOSED' | 'DROOPY';
   yawnDetected: boolean;
   confidence: number;
@@ -19,4 +30,5 @@ export interface SystemLog {
   timestamp: Date;
   level: FatigueLevel;
   message: string;
+  engine: EngineType;
 }
